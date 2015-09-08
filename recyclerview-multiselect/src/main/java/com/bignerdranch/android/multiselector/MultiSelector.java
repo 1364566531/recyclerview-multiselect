@@ -1,8 +1,8 @@
 package com.bignerdranch.android.multiselector;
 
-import android.os.Bundle;
-import android.util.SparseBooleanArray;
+import android.support.v4.util.SparseArrayCompat;
 
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,13 +33,26 @@ import java.util.List;
  * </pre>
  */
 public class MultiSelector {
-    private static final String SELECTION_POSITIONS = "position";
-    private static final String SELECTIONS_STATE = "state";
-    private SparseBooleanArray mSelections = new SparseBooleanArray();
+    public interface OnSelectionChanged {
+        void onSelectedStatusChanged(MultiSelector selector, boolean selectable);
+
+        void onSelectionChanged(MultiSelector selector, final int position, final long id, final boolean isSelected, int count);
+    }
+
+    private SparseArrayCompat<Long> mSelections = new SparseArrayCompat<>();
     private WeakHolderTracker mTracker = new WeakHolderTracker();
     private boolean mIsSelectable;
+    private WeakReference<OnSelectionChanged> mListener;
 
     public MultiSelector() {
+    }
+
+    public void setOnSelectionChangedListener(final OnSelectionChanged listener) {
+        if (null != listener) {
+            this.mListener = new WeakReference<OnSelectionChanged>(listener);
+        } else {
+            this.mListener = null;
+        }
     }
 
     /**
@@ -59,8 +72,17 @@ public class MultiSelector {
      * @param isSelectable True if in selection mode.
      */
     public void setSelectable(boolean isSelectable) {
-        mIsSelectable = isSelectable;
-        refreshAllHolders();
+        if (mIsSelectable != isSelectable) {
+            mIsSelectable = isSelectable;
+            refreshAllHolders();
+
+            if (null != mListener) {
+                final OnSelectionChanged listener = mListener.get();
+                if (null != listener) {
+                    listener.onSelectedStatusChanged(this, isSelectable);
+                }
+            }
+        }
     }
 
     /**
@@ -85,8 +107,19 @@ public class MultiSelector {
      * @param isSelected Whether the item will be selected.
      */
     public void setSelected(int position, long id, boolean isSelected) {
-        mSelections.put(position, isSelected);
+        if (isSelected) {
+            mSelections.put(position, id);
+        } else {
+            mSelections.remove(position);
+        }
         refreshHolder(mTracker.getHolder(position));
+
+        if (null != mListener) {
+            final OnSelectionChanged listener = mListener.get();
+            if (null != listener) {
+                listener.onSelectionChanged(this, position, id, isSelected, getSelectionCount());
+            }
+        }
     }
 
     /**
@@ -97,7 +130,16 @@ public class MultiSelector {
      * @return Whether the item is selected.
      */
     public boolean isSelected(int position, long id) {
-        return mSelections.get(position);
+        return mSelections.get(position) != null;
+    }
+
+    /**
+     * <p>Returns the current selection count</p>
+     *
+     * @return
+     */
+    public int getSelectionCount() {
+        return mSelections.size();
     }
 
     /**
@@ -115,15 +157,34 @@ public class MultiSelector {
      * @return A list of the currently selected positions.
      */
     public List<Integer> getSelectedPositions() {
-        List<Integer> positions = new ArrayList<Integer>();
+        List<Integer> positions = new ArrayList<>();
 
         for (int i = 0; i < mSelections.size(); i++) {
-            if (mSelections.valueAt(i)) {
-                positions.add(mSelections.keyAt(i));
-            }
+            positions.add(mSelections.keyAt(i));
         }
 
         return positions;
+    }
+
+    /**
+     * <p>Return a list of selected ids.</p>
+     *
+     * @return A list of the currently selected positions.
+     */
+    public List<Long> getSelectedIds() {
+        List<Long> ids = new ArrayList<>();
+        for (int i = 0; i < mSelections.size(); i++) {
+            ids.add(mSelections.valueAt(i));
+        }
+        return ids;
+    }
+
+    private long[] getSelectedPrimitiveIds() {
+        long[] ids = new long[mSelections.size()];
+        for (int i = 0; i < mSelections.size(); i++) {
+            ids[i] = mSelections.valueAt(i);
+        }
+        return ids;
     }
 
     /**
@@ -139,7 +200,7 @@ public class MultiSelector {
      */
     public void bindHolder(SelectableHolder holder, int position, long id) {
         mTracker.bindHolder(holder, position);
-         refreshHolder(holder);
+        refreshHolder(holder);
     }
 
     /**
@@ -197,46 +258,7 @@ public class MultiSelector {
         }
         holder.setSelectable(mIsSelectable);
 
-        boolean isActivated = mSelections.get(holder.getAdapterPosition());
+        boolean isActivated = mSelections.get(holder.getAdapterPosition()) != null;
         holder.setActivated(isActivated);
     }
-
-
-    /**
-     * @return Bundle containing the states of the selection and a flag indicating if the multiselection is in
-     * selection mode or not
-     */
-
-    public Bundle saveSelectionStates() {
-        Bundle information = new Bundle();
-        information.putIntegerArrayList(SELECTION_POSITIONS, (ArrayList<Integer>) getSelectedPositions());
-        information.putBoolean(SELECTIONS_STATE, isSelectable());
-        return information;
-    }
-
-    /**
-     * restore the selection states of the multiselector and the ViewHolder Trackers
-     *
-     * @param savedStates Saved state bundle, probably from a fragment or activity.
-     */
-
-    public void restoreSelectionStates(Bundle savedStates) {
-        List<Integer> selectedPositions = savedStates.getIntegerArrayList(SELECTION_POSITIONS);
-        restoreSelections(selectedPositions);
-        mIsSelectable = savedStates.getBoolean(SELECTIONS_STATE);
-
-    }
-
-    private void restoreSelections(List<Integer> selected) {
-        if (selected == null) return;
-        int position;
-        mSelections.clear();
-        for (int i = 0; i < selected.size(); i++) {
-            position = selected.get(i);
-            mSelections.put(position, true);
-        }
-        refreshAllHolders();
-    }
-
-
 }

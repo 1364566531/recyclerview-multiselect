@@ -87,7 +87,7 @@ public class CrimeListFragment extends BaseFragment {
         if (mMultiSelector != null) {
             Bundle bundle = savedInstanceState;
             if (bundle != null) {
-                mMultiSelector.restoreSelectionStates(bundle.getBundle(TAG));
+//                mMultiSelector.restoreSelectionStates(bundle.getBundle(TAG));
             }
 
             if (mMultiSelector.isSelectable()) {
@@ -104,7 +104,7 @@ public class CrimeListFragment extends BaseFragment {
 
     @Override
     public void onSaveInstanceState(Bundle outState) {
-        outState.putBundle(TAG, mMultiSelector.saveSelectionStates());
+//        outState.putBundle(TAG, mMultiSelector.saveSelectionStates());
         super.onSaveInstanceState(outState);
     }
 
